@@ -1,0 +1,62 @@
+{
+	"info": {
+		"_postman_id": "dcb9ac37-5a07-444a-bf52-d1ad692bdd7e",
+		"name": "Dynamic Scraping API",
+		"description": "API collection for dynamic web scraping",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "38187334"
+	},
+	"item": [
+		{
+			"name": "Fetch Selectable Fields",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/fetch-selectable-fields?url={{url}}",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"fetch-selectable-fields"
+					],
+					"query": [
+						{
+							"key": "url",
+							"value": "{{url}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Scrape Data",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\t\"url\": \"{{url}}\",\n\t\"fields\": {\n\t\t\"name\": \".name\",\n\t\t\"price\": \".price\"\n\t}\n}"
+				},
+				"url": {
+					"raw": "localhost:8080/scrape",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"scrape"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
