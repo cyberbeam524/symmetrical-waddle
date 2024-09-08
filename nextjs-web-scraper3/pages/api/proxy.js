@@ -1,10 +1,20 @@
 import axios from 'axios';
 
+// Simple in-memory cache
+const htmlCache = {};
+
 export default async (req, res) => {
     const { url } = req.query;
     if (!url) {
         return res.status(400).json({ message: 'URL parameter is required' });
     }
+
+        // Return cached content if available
+        if (htmlCache[url]) {
+            res.setHeader('Content-Type', 'text/html');
+            res.send(htmlCache[url]);
+            return;
+        }
 
     try {
         const response = await axios.get(url, {
@@ -33,12 +43,36 @@ export default async (req, res) => {
             document.addEventListener('click', function(event) {
                 event.preventDefault();
                 const target = event.target;
-                target.classList.toggle('highlight');
+                target.classList.add('highlight');
                 console.log(target.tagName.toLowerCase() + (target.className ? '.' + target.className.split(' ').join('.') : ''));
+
+                const selector = target.tagName.toLowerCase() + (target.className ? '.' + target.className.split(' ').join('.') : '');
+                window.parent.postMessage(selector, '*');
+            });
+
+            document.addEventListener('DOMContentLoaded', function() {
+                window.addEventListener('message', function(event) {
+                    // Validate the origin here to ensure messages are from your trusted domain
+                    if (event.origin !== "http://localhost:3000") { // Adjust the origin according to your deployment
+                        return;
+                    }
+            
+                    const data = event.data;
+                    if (data && data.type === 'REMOVE_HIGHLIGHT') {
+                        const elements = document.querySelectorAll(data.selector);
+                        elements.forEach(el => {
+                            el.classList.remove('highlight'); // Assuming 'highlight' is a class that applies the style
+                        });
+                    }
+                });
             });
         </script></body>`);
 
         res.setHeader('Content-Type', 'text/html');
+
+        htmlCache[url] = htmlContent; // Cache the processed HTML
+
+
         res.send(htmlContent);
     } catch (error) {
         console.error('Failed to fetch or process the page:', error);
