@@ -8,10 +8,13 @@ import (
     "net/http"
     "strings"
 	"time"
+    "io"
 
     "github.com/PuerkitoBio/goquery"
     "github.com/gorilla/mux"
     _ "github.com/ClickHouse/clickhouse-go"
+    // "github.com/gin-contrib/cors"
+    "github.com/gorilla/handlers"
 )
 
 var (
@@ -152,11 +155,46 @@ func insertDataIntoClickhouse(url, jsonData string) error {
     return tx.Commit()
 }
 
+func proxyHandler(w http.ResponseWriter, r *http.Request) {
+    // Get the URL from the query string
+    url := r.URL.Query().Get("url")
+    if url == "" {
+        http.Error(w, "URL parameter is missing", http.StatusBadRequest)
+        return
+    }
+
+    // Make an HTTP GET request to the target URL
+    resp, err := http.Get(url)
+    if err != nil {
+        http.Error(w, "Failed to fetch the webpage", http.StatusInternalServerError)
+        return
+    }
+    defer resp.Body.Close()
+
+    // Set the Content-Type header to the same as the fetched resource
+    w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+
+    // Stream the response body directly to the client
+    io.Copy(w, resp.Body)
+}
+
 func main() {
     initClickhouse()
     r := mux.NewRouter()
+    // r.Use(cors.Default())  // Allows all origins
     r.HandleFunc("/fetch-selectable-fields", fetchSelectableFieldsHandler).Methods("GET")
     r.HandleFunc("/scrape", scrapeHandler).Methods("POST")
+    // Add a new route for the proxy
+    r.HandleFunc("/proxy", proxyHandler).Methods("GET")
+
+    // Configure CORS
+    corsObj := handlers.AllowedOrigins([]string{"*"}) // Allows all origins
+    headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type", "Authorization"})
+    methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS"})
+
+    // Apply the CORS middleware to our router, with the configuration we defined above
+    http.ListenAndServe(":8080", handlers.CORS(corsObj, headersOk, methodsOk)(r))
+
     log.Println("HTTP server started on :8080")
-    log.Fatal(http.ListenAndServe(":8080", r))
+    // log.Fatal(http.ListenAndServe(":8080", r))
 }
