@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Parser } from 'json2csv';
-
+import Script from 'next/script';
 
 
 // const TableComponent4 = ({ scrapedData: any }) => {
@@ -307,6 +307,7 @@ const Home = () => {
 
   return (
     <div>
+      <Script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9744548568508745" crossOrigin="anonymous"></Script>
       <Navbar />
       <HeroSection />
 
