@@ -1,0 +1,174 @@
+services:
+  kafka:
+    build:
+      context: .
+      dockerfile: Kafka.Dockerfile
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CREATE_TOPICS: "example-topic:1:1,click-events:1:1,impression-events:1:1,ad_events:1:1,ad_events_replay:1:1"  # format: topic_name:partitions:replication_factor
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  
+  # PostgreSQL database service
+  postgres:
+    image: postgres:13
+    container_name: postgres-db
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+      - ./db_init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      retries: 5
+
+  # Prometheus monitoring service
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus-new
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+
+  # Grafana service for visualization
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana_data:/var/lib/grafana
+
+  # golang-api:
+  #   build: ./backend/go-api
+  #   ports:
+  #     - "8080:8080"
+  #     - "9091:9091"
+
+  spark:
+    image: bitnami/spark:latest
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+
+  # airflow:
+  #   image: apache/airflow:slim-2.10.3-python3.8
+  #   build:
+  #     context: airflow
+  #     dockerfile: Dockerfile
+  #   container_name: airflow
+  #   ports:
+  #     - "8081:8080" # Map the Airflow webserver to port 8080
+  #   environment:
+  #     - LOAD_EXAMPLES=False
+  #     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+  #     # - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+  #     - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+  #   volumes:
+  #     - ./dags:/usr/local/airflow/dags # Mount the local 'dags' directory
+  #     - ./logs:/usr/local/airflow/logs # Optional: Mount logs directory
+  #     - ./plugins:/usr/local/airflow/plugins # Optional: Mount plugins directory
+  #   restart: always
+  #   command: webserver  # Explicitly run the Airflow webserver
+
+  airflow-init:
+    image: apache/airflow:slim-2.10.3-python3.8
+    container_name: airflow-init
+    build:
+      context: airflow
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./logs:/usr/local/airflow/logs
+      - ./plugins:/usr/local/airflow/plugins
+    entrypoint: ["airflow", "db", "init"]
+
+  airflow:
+    image: apache/airflow:slim-2.10.3-python3.8
+    build:
+      context: airflow
+      dockerfile: Dockerfile
+    container_name: airflow
+    depends_on:
+      - postgres
+      - airflow-init
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__PARALLELISM=64        # Max number of tasks running globally
+      - AIRFLOW__CORE__DAG_CONCURRENCY=32   # Max tasks per DAG
+      - AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG=32  # Override per-DAG task concurrency
+      - AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG=10   # Max DAG runs at a time
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - AIRFLOW__CORE__DAGS_FOLDER=/usr/local/airflow/dags
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./logs:/usr/local/airflow/logs
+      - ./plugins:/usr/local/airflow/plugins
+    restart: always
+    command: ["airflow", "webserver"]
+
+  airflow-scheduler:
+    image: apache/airflow:slim-2.10.3-python3.8
+    build:
+      context: airflow
+      dockerfile: Dockerfile
+    container_name: airflow-scheduler
+    depends_on:
+      - airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__PARALLELISM=64        # Max number of tasks running globally
+      - AIRFLOW__CORE__DAG_CONCURRENCY=32   # Max tasks per DAG
+      - AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG=32  # Override per-DAG task concurrency
+      - AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG=10   # Max DAG runs at a time
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./logs:/usr/local/airflow/logs
+      - ./plugins:/usr/local/airflow/plugins
+    command: ["airflow", "scheduler"]
+
+volumes:
+  postgres_data:
+  grafana_data:
+  
+
+
+
+# netstat -aon | findstr :8080
+# sudo taskkill /PID 56908 /F

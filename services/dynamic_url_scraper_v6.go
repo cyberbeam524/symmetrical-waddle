@@ -46,7 +46,7 @@ func initClickhouse() {
 }
 
 func main() {
-    initClickhouse()
+    // initClickhouse()
     r := mux.NewRouter()
     r.HandleFunc("/scrape", scrapeHandler).Methods("POST")
 

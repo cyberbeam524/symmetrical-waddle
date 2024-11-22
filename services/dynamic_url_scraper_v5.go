@@ -115,7 +115,7 @@ func scrapeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    initClickhouse()
+    // initClickhouse()
     r := mux.NewRouter()
     r.HandleFunc("/scrape", scrapeHandler).Methods("POST")
 

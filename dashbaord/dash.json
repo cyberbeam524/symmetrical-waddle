@@ -1,0 +1,17 @@
+{
+    "title": "Workflow Metrics",
+    "panels": [
+      {
+        "type": "graph",
+        "title": "Task Processed Total",
+        "targets": [
+          {
+            "expr": "task_processed_total",
+            "legendFormat": "{{task_type}}",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  }
+  
