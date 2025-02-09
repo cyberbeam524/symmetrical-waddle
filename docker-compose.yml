@@ -99,6 +99,8 @@ services:
 
   airflow-init:
     image: apache/airflow:slim-2.10.3-python3.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     container_name: airflow-init
     build:
       context: airflow
@@ -116,6 +118,8 @@ services:
 
   airflow:
     image: apache/airflow:slim-2.10.3-python3.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: airflow
       dockerfile: Dockerfile
@@ -144,6 +148,8 @@ services:
 
   airflow-scheduler:
     image: apache/airflow:slim-2.10.3-python3.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: airflow
       dockerfile: Dockerfile
@@ -163,12 +169,143 @@ services:
       - ./plugins:/usr/local/airflow/plugins
     command: ["airflow", "scheduler"]
 
+
+# # for dynamic scrape:
+#   web:
+#     build: ./dynamicScrape
+#     ports:
+#       - "8000:8000"
+#     volumes:
+#       - ./dynamicScrape:/app
+#     depends_on:
+#       - postgres1
+#       - redis
+#     environment:
+#       - DATABASE_URL=postgresql+asyncpg://user:password@postgres1/scraper
+#       - REDIS_URL=redis://redis:6379/0
+
+  postgres1:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=scraper
+    volumes:
+      - postgres_data1:/var/lib/postgresql/data
+
+  # redis:
+  #   image: redis:7
+  #   ports:
+  #     - "6379:6379"
+
+  mongo:
+    image: mongo:5.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    # networks:
+    #   - app_network
+  
+  trino:
+    image: trinodb/trino:latest
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
+    user: "${UID}:${GID}"
+    container_name: trino
+    restart: always
+    ports:
+      - "8090:8082"
+    volumes:
+      - ./trino-data:/var/trino/data  # Ensure this line is added
+      - ./trino-config:/etc/trino
+      - ./trino-config/jvm.config:/etc/trino/jvm.config  # Ensure this line is present
+      - ./trino-config/node.properties:/etc/trino/node.properties
+      - ./trino-config/config.properties:/etc/trino/config.properties  # Ensure this line is present
+      - ./trino-config/catalog:/etc/trino/catalog
+    depends_on:
+      - mongo
+    environment:
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=UTC"
+
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    restart: always
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_ENV: production
+      SUPERSET_SECRET_KEY: 'your_secret_key'
+      SUPERSET_DB_MIGRATE: true  # Ensure migrations are applied to PostgreSQL
+      SUPERSET_DATABASE_URI: 'postgresql+psycopg2://superset:superset_password@dbsuperset:5435/superset'
+      # SUPERSET_LOAD_EXAMPLES: "yes"
+      # SUPERSET_ADMIN_USERNAME: "admin"
+      # SUPERSET_ADMIN_PASSWORD: "admin"
+    volumes:
+      - ./superset_home:/app/superset_home
+      - ./superset_home/superset_config.py:/app/pythonpath/superset_config.py
+    depends_on:
+      - dbsuperset
+      - trino
+    command: >
+      /bin/bash -c "
+      superset db upgrade &&
+      superset init &&
+      superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
+      "
+
+  superset-init:
+    image: apache/superset:latest
+    container_name: superset-init
+    depends_on:
+      - dbsuperset
+    environment:
+      SUPERSET_ENV: production
+      SUPERSET_SECRET_KEY: 'your_secret_key'
+      SUPERSET_DATABASE_URI: 'postgresql+psycopg2://superset:superset_password@dbsuperset:5435/superset'
+    entrypoint: >
+      /bin/bash -c "
+      superset fab create-admin \
+        --username admin \
+        --password admin \
+        --firstname Superset \
+        --lastname Admin \
+        --email admin@example.com
+      "
+
+  dbsuperset:
+    image: postgres:13
+    container_name: superset_db
+    restart: always
+    environment:
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset_password
+      POSTGRES_DB: superset
+    ports:
+      - "5435:5435"
+    volumes:
+      - ./db_data:/var/lib/postgresql/data
+
+  redissuperset:
+    image: redis:6.0
+    container_name: superset_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+
 volumes:
   postgres_data:
   grafana_data:
-  
-
-
+  postgres_data1:
+  mongo_data:
+  superset_home:
+  trino-data:
+  trino-config:
 
 # netstat -aon | findstr :8080
 # sudo taskkill /PID 56908 /F
+
+

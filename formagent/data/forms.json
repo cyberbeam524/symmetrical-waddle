@@ -1,0 +1,19 @@
+[
+    {
+      "website": "JobStreet",
+      "form": {
+        "fields": ["name", "email", "resume", "expected_salary"],
+        "actions": ["fill", "upload", "submit"]
+      },
+      "html": "<form>...</form>"
+    },
+    {
+      "website": "LinkedIn",
+      "form": {
+        "fields": ["profile_link", "experience_summary", "resume"],
+        "actions": ["fill", "upload", "submit"]
+      },
+      "html": "<form>...</form>"
+    }
+  ]
+  

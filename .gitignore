@@ -17,3 +17,17 @@ logs
 
 
 services/workflows/
+
+dynamicScrape
+dTestPythonFunctions
+env
+
+db_data
+
+.cache
+
+.local
+
+trino-data
+
+.env

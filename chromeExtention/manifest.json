@@ -1,0 +1,15 @@
+{
+    "manifest_version": 3,
+    "name": "Selector Playground",
+    "version": "1.0",
+    "permissions": ["scripting", "activeTab", "storage"],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "host_permissions": ["<all_urls>"],
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": "icon.png"
+    }
+  }
+  
